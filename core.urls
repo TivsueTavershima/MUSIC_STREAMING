@@ -1,0 +1,8 @@
+/admin/          → Django admin
+/auth/           → users.urls       (register, login, upgrade, subscription/status)
+/users/          → playlists.user_urls   (liked-songs)
+/billing/        → billing.urls     (plans)
+/music/          → music.urls       (songs, artists, albums, upload, like)
+/playlists/      → playlists.urls   (create, my, <id>/add)
+/stream/         → streaming.urls   (stream song, history)
+/analytics/      → analytics.urls   (streams, songs, top-artists, genres, users)

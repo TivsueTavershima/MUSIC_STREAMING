@@ -1,0 +1,1199 @@
+{
+  "info": {
+    "name": "StreamBeat API",
+    "description": "Full test collection for the StreamBeat Music Streaming API.\n\nSetup:\n1. Set {{base_url}} = http://127.0.0.1:8000\n2. Run 'Register Free User' first — access/refresh tokens are auto-saved to collection variables.\n3. Requests that require premium or admin auth have their own login steps.\n\nExecution order:\n  Auth → Billing → Music (Admin) → Playlists → Streaming → Search & Discover → Analytics",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",         "value": "http://127.0.0.1:8000" },
+    { "key": "access_token",     "value": "" },
+    { "key": "refresh_token",    "value": "" },
+    { "key": "admin_access",     "value": "" },
+    { "key": "premium_access",   "value": "" },
+    { "key": "song_id",          "value": "1" },
+    { "key": "artist_id",        "value": "1" },
+    { "key": "album_id",         "value": "1" },
+    { "key": "playlist_id",      "value": "1" }
+  ],
+  "item": [
+
+    {
+      "name": "1. Auth",
+      "item": [
+
+        {
+          "name": "Register Free User",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "const json = pm.response.json();",
+                "pm.test('Has tokens', () => pm.expect(json.tokens).to.have.property('access'));",
+                "pm.collectionVariables.set('access_token',  json.tokens.access);",
+                "pm.collectionVariables.set('refresh_token', json.tokens.refresh);",
+                "pm.test('Role is free', () => pm.expect(json.user.role).to.eql('free'));",
+                "pm.test('is_premium false', () => pm.expect(json.user.is_premium).to.be.false);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/register/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"freeuser\",\n  \"email\": \"free@streambeat.com\",\n  \"password\": \"TestPass123!\",\n  \"password2\": \"TestPass123!\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Register Free User — Duplicate Email (expects 400)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 400 on duplicate email', () => pm.response.to.have.status(400));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/register/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"freeuser2\",\n  \"email\": \"free@streambeat.com\",\n  \"password\": \"TestPass123!\",\n  \"password2\": \"TestPass123!\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Register Password Mismatch (expects 400)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 400 on mismatch', () => pm.response.to.have.status(400));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/register/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"baduser\",\n  \"email\": \"bad@streambeat.com\",\n  \"password\": \"TestPass123!\",\n  \"password2\": \"WrongPass999!\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Login Free User",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has access token', () => pm.expect(json).to.have.property('access'));",
+                "pm.collectionVariables.set('access_token',  json.access);",
+                "pm.collectionVariables.set('refresh_token', json.refresh);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/login/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"free@streambeat.com\",\n  \"password\": \"TestPass123!\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Login Wrong Password (expects 401)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 401', () => pm.response.to.have.status(401));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/login/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"free@streambeat.com\",\n  \"password\": \"WrongPass!\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Get Profile",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has email', () => pm.expect(json).to.have.property('email'));",
+                "pm.test('Has role',  () => pm.expect(json).to.have.property('role'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/auth/profile/"
+          }
+        },
+
+        {
+          "name": "Subscription Status — Free User",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('is_premium false', () => pm.expect(json.is_premium).to.be.false);",
+                "pm.test('Has subscription', () => pm.expect(json).to.have.property('subscription'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/auth/subscription/status/"
+          }
+        },
+
+        {
+          "name": "Upgrade to Premium",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Plan is premium', () => pm.expect(json.subscription.plan.plan_type).to.eql('premium'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/upgrade/",
+            "body": { "mode": "raw", "raw": "{\n  \"plan_type\": \"premium\"\n}" }
+          }
+        },
+
+        {
+          "name": "Downgrade to Free",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Plan is free', () => pm.expect(json.subscription.plan.plan_type).to.eql('free'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/upgrade/",
+            "body": { "mode": "raw", "raw": "{\n  \"plan_type\": \"free\"\n}" }
+          }
+        },
+
+        {
+          "name": "Upgrade Invalid Plan (expects 400)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 400', () => pm.response.to.have.status(400));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/upgrade/",
+            "body": { "mode": "raw", "raw": "{\n  \"plan_type\": \"enterprise\"\n}" }
+          }
+        },
+
+        {
+          "name": "Change Password",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/change-password/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"old_password\": \"TestPass123!\",\n  \"new_password\": \"TestPass123!\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Refresh Token",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.collectionVariables.set('access_token', json.access);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/token/refresh/",
+            "body": { "mode": "raw", "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}" }
+          }
+        },
+
+        {
+          "name": "Logout",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 205', () => pm.response.to.have.status(205));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/logout/",
+            "body": { "mode": "raw", "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}" }
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "2. Billing",
+      "item": [
+        {
+          "name": "List Subscription Plans",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Returns array', () => pm.expect(json).to.be.an('array'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/billing/plans/"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "3. Music Library — Admin Setup",
+      "description": "Create admin user via Django shell first:\npython manage.py shell -c \"\nfrom django.contrib.auth import get_user_model\nUser = get_user_model()\nu = User.objects.create_user(username='admin', email='admin@streambeat.com', password='AdminPass123!', role='admin')\nprint('Admin created')\n\"",
+      "item": [
+
+        {
+          "name": "Login Admin",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "pm.collectionVariables.set('admin_access', pm.response.json().access);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/login/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@streambeat.com\",\n  \"password\": \"AdminPass123!\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Create Genre",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "pm.test('Has name', () => pm.expect(pm.response.json()).to.have.property('name'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_access}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/music/genres/",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Afrobeats\",\n  \"description\": \"West African popular music genre\"\n}" }
+          }
+        },
+
+        {
+          "name": "Create Genre — Free User (expects 403)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 403', () => pm.response.to.have.status(403));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/music/genres/",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Sneaky Genre\"\n}" }
+          }
+        },
+
+        {
+          "name": "Create Artist",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "pm.collectionVariables.set('artist_id', pm.response.json().id);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_access}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/music/artists/",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Burna Boy\",\n  \"bio\": \"Grammy-winning Nigerian Afrofusion artist.\"\n}" }
+          }
+        },
+
+        {
+          "name": "Create Album",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "pm.collectionVariables.set('album_id', pm.response.json().id);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_access}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/music/albums/",
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"African Giant\",\n  \"artist\": {{artist_id}},\n  \"release_date\": \"2019-07-26\"\n}" }
+          }
+        },
+
+        {
+          "name": "Upload Song (Admin Only)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "const json = pm.response.json();",
+                "pm.collectionVariables.set('song_id', json.id);",
+                "pm.test('Has title', () => pm.expect(json).to.have.property('title'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_access}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/music/upload/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Ye\",\n  \"artist\": {{artist_id}},\n  \"album\": {{album_id}},\n  \"duration\": 237,\n  \"audio_file_url\": \"https://cdn.example.com/ye.mp3\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Upload Song — Free User (expects 403)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 403', () => pm.response.to.have.status(403));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/music/upload/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sneaky Upload\",\n  \"artist\": {{artist_id}},\n  \"duration\": 180\n}"
+            }
+          }
+        },
+
+        {
+          "name": "List Songs",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has count', () => pm.expect(json).to.have.property('count'));",
+                "pm.test('Has results', () => pm.expect(json.results).to.be.an('array'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/music/songs/"
+          }
+        },
+
+        {
+          "name": "List Songs — Search",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/music/songs/?search=Ye",
+              "query": [{ "key": "search", "value": "Ye" }]
+            }
+          }
+        },
+
+        {
+          "name": "Song Detail",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has all spec fields', () => {",
+                "  ['title','audio_file_url','album','artist','duration','stream_count','uploaded_by'].forEach(f => pm.expect(json).to.have.property(f));",
+                "});"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/music/songs/{{song_id}}/"
+          }
+        },
+
+        {
+          "name": "Song Detail — Not Found (expects 404)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 404', () => pm.response.to.have.status(404));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/music/songs/99999/"
+          }
+        },
+
+        {
+          "name": "Artist Albums",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "pm.test('Results is array', () => pm.expect(pm.response.json().results).to.be.an('array'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/music/artists/{{artist_id}}/albums/"
+          }
+        },
+
+        {
+          "name": "List Songs — Unauthenticated (expects 401)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 401', () => pm.response.to.have.status(401));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/music/songs/"
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "4. Playlists & User Library",
+      "item": [
+
+        {
+          "name": "Create Playlist",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "const json = pm.response.json();",
+                "pm.collectionVariables.set('playlist_id', json.id);",
+                "pm.test('Has name', () => pm.expect(json).to.have.property('name'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/playlists/create/",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"My Chill Mix\",\n  \"description\": \"Songs for a relaxed evening\"\n}" }
+          }
+        },
+
+        {
+          "name": "Create Playlist — Admin (expects 403)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 403 — admins have no personal playlists', () => pm.response.to.have.status(403));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_access}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/playlists/create/",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Admin Playlist\"\n}" }
+          }
+        },
+
+        {
+          "name": "Add Song to Playlist",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "pm.test('Has playlist_id', () => pm.expect(pm.response.json()).to.have.property('playlist_id'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/playlists/{{playlist_id}}/add/",
+            "body": { "mode": "raw", "raw": "{\n  \"song_id\": {{song_id}},\n  \"order\": 1\n}" }
+          }
+        },
+
+        {
+          "name": "Add Same Song Again (expects 200 not duplicate)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200 on duplicate', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/playlists/{{playlist_id}}/add/",
+            "body": { "mode": "raw", "raw": "{\n  \"song_id\": {{song_id}}\n}" }
+          }
+        },
+
+        {
+          "name": "My Playlists",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('count >= 1', () => pm.expect(json.count).to.be.at.least(1));",
+                "pm.test('Has items inside playlist', () => pm.expect(json.results[0]).to.have.property('items'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/playlists/my/"
+          }
+        },
+
+        {
+          "name": "Like a Song",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "pm.test('liked is true', () => pm.expect(pm.response.json().liked).to.be.true);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/music/like/{{song_id}}/"
+          }
+        },
+
+        {
+          "name": "Unlike the Same Song (toggle)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "pm.test('liked is false', () => pm.expect(pm.response.json().liked).to.be.false);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/music/like/{{song_id}}/"
+          }
+        },
+
+        {
+          "name": "Like Song — Admin (expects 403)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 403 — admins have no liked songs', () => pm.response.to.have.status(403));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_access}}" }],
+            "url": "{{base_url}}/music/like/{{song_id}}/"
+          }
+        },
+
+        {
+          "name": "Re-Like Song (setup for liked-songs list)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 201', () => pm.response.to.have.status(201));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/music/like/{{song_id}}/"
+          }
+        },
+
+        {
+          "name": "Liked Songs List",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('count >= 1', () => pm.expect(json.count).to.be.at.least(1));",
+                "pm.test('Has song_detail', () => pm.expect(json.results[0]).to.have.property('song_detail'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/users/liked-songs/"
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "5. Streaming & Play History",
+      "item": [
+
+        {
+          "name": "Stream a Song",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has all streaming fields', () => {",
+                "  ['song_id','title','artist','audio_url','stream_count','is_premium','ad_required','skip_allowed'].forEach(f => {",
+                "    pm.expect(json, f).to.have.property(f);",
+                "  });",
+                "});",
+                "pm.test('stream_count >= 1', () => pm.expect(json.stream_count).to.be.at.least(1));",
+                "pm.test('is_premium false for free user', () => pm.expect(json.is_premium).to.be.false);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/stream/{{song_id}}/"
+          }
+        },
+
+        {
+          "name": "Stream — Unauthenticated (expects 401)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 401', () => pm.response.to.have.status(401));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/stream/{{song_id}}/"
+          }
+        },
+
+        {
+          "name": "Stream Non-Existent Song (expects 404)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 404', () => pm.response.to.have.status(404));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/stream/99999/"
+          }
+        },
+
+        {
+          "name": "Play History",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('count >= 1', () => pm.expect(json.count).to.be.at.least(1));",
+                "pm.test('Has played_at', () => pm.expect(json.results[0]).to.have.property('played_at'));",
+                "pm.test('Has song_detail', () => pm.expect(json.results[0]).to.have.property('song_detail'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/stream/history/"
+          }
+        },
+
+        {
+          "name": "Stream as Premium — No Ads",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "pm.test('ad_required false for premium', () => pm.expect(pm.response.json().ad_required).to.be.false);",
+                "pm.test('skip_allowed true for premium', () => pm.expect(pm.response.json().skip_allowed).to.be.true);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{premium_access}}" }],
+            "url": "{{base_url}}/stream/{{song_id}}/"
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "6. Search & Discover",
+      "item": [
+
+        {
+          "name": "Search — Songs, Albums, Artists",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has query key', () => pm.expect(json).to.have.property('query'));",
+                "pm.test('Has songs',   () => pm.expect(json).to.have.property('songs'));",
+                "pm.test('Has albums',  () => pm.expect(json).to.have.property('albums'));",
+                "pm.test('Has artists', () => pm.expect(json).to.have.property('artists'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/search/?q=Burna",
+              "query": [{ "key": "q", "value": "Burna" }]
+            }
+          }
+        },
+
+        {
+          "name": "Search — Empty Query",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('songs empty', () => pm.expect(json.songs).to.eql([]));",
+                "pm.test('artists empty', () => pm.expect(json.artists).to.eql([]));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/search/"
+          }
+        },
+
+        {
+          "name": "Discover — Trending",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "pm.test('Has songs', () => pm.expect(pm.response.json()).to.have.property('songs'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/discover/trending/"
+          }
+        },
+
+        {
+          "name": "Discover — Top Artists",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "pm.test('Has artists', () => pm.expect(pm.response.json()).to.have.property('artists'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/discover/top-artists/"
+          }
+        },
+
+        {
+          "name": "Discover — New Releases",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "pm.test('Has songs', () => pm.expect(pm.response.json()).to.have.property('songs'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/discover/new-releases/"
+          }
+        },
+
+        {
+          "name": "Discover — Recommendations (cold start)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has based_on', () => pm.expect(json).to.have.property('based_on'));",
+                "pm.test('Has reason',   () => pm.expect(json).to.have.property('reason'));",
+                "pm.test('Has songs',    () => pm.expect(json).to.have.property('songs'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/discover/recommendations/"
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "7. Admin Analytics",
+      "item": [
+
+        {
+          "name": "Stream Stats",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const s = pm.response.json().streams;",
+                "pm.test('Has daily/weekly/monthly/total', () => {",
+                "  ['daily','weekly','monthly','total'].forEach(k => pm.expect(s).to.have.property(k));",
+                "});"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_access}}" }],
+            "url": "{{base_url}}/admin/analytics/streams/"
+          }
+        },
+
+        {
+          "name": "Stream Stats — Free User (expects 403)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 403', () => pm.response.to.have.status(403));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/admin/analytics/streams/"
+          }
+        },
+
+        {
+          "name": "Most Streamed Songs",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has most_streamed_songs', () => pm.expect(json).to.have.property('most_streamed_songs'));",
+                "pm.test('Has summary', () => pm.expect(json).to.have.property('summary'));",
+                "pm.test('Has chart',   () => pm.expect(json).to.have.property('chart'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_access}}" }],
+            "url": "{{base_url}}/admin/analytics/songs/"
+          }
+        },
+
+        {
+          "name": "Most Active Users",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has most_active_users', () => pm.expect(json).to.have.property('most_active_users'));",
+                "pm.test('Has summary', () => pm.expect(json).to.have.property('summary'));",
+                "pm.test('Has chart',   () => pm.expect(json).to.have.property('chart'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_access}}" }],
+            "url": "{{base_url}}/admin/analytics/users/"
+          }
+        },
+
+        {
+          "name": "Most Played Genres",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has most_played_genres', () => pm.expect(json).to.have.property('most_played_genres'));",
+                "pm.test('Has chart', () => pm.expect(json).to.have.property('chart'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_access}}" }],
+            "url": "{{base_url}}/admin/analytics/genres/"
+          }
+        },
+
+        {
+          "name": "Top Artists Analytics",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                "const json = pm.response.json();",
+                "pm.test('Has top_artists', () => pm.expect(json).to.have.property('top_artists'));",
+                "pm.test('Has summary', () => pm.expect(json).to.have.property('summary'));",
+                "pm.test('Has chart',   () => pm.expect(json).to.have.property('chart'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_access}}" }],
+            "url": "{{base_url}}/admin/analytics/top-artists/"
+          }
+        },
+
+        {
+          "name": "All Analytics — Unauthenticated (expects 401)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 401', () => pm.response.to.have.status(401));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/analytics/streams/"
+          }
+        }
+
+      ]
+    }
+
+  ]
+}
