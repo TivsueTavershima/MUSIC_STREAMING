@@ -4,26 +4,18 @@ from rest_framework.permissions import IsAuthenticated
 from music.models import Song
 from music.serializers import AlbumSerializer, ArtistSerializer
 from .models import Follow, PlayHistory  
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
 from .models import Song, PlayHistory
 from .serializers import SongSerializer
-      
 from django.db.models import Count
 from datetime import timedelta
-from django.utils import timezone
-
-        
-from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework.response import Response
 from django.db.models import Q
 from .models import Song, Artist
 from music.models import Album
-
+from streaming.serializers import PlayHistorySerializer
+from django.core.cache import cache
 
 
 
@@ -43,9 +35,7 @@ class StreamSongView(APIView):
         subscription = getattr(user, 'subscription', None)
         is_premium = subscription and subscription.plan == 'premium' and subscription.is_active
 
-        # --- Streaming restrictions for free users ---
         if not is_premium:
-            # Check skip limit (max 6 skips per hour)
             one_hour_ago = timezone.now() - timezone.timedelta(hours=1)
             skip_count = PlayHistory.objects.filter(
                 user=user,
@@ -53,107 +43,129 @@ class StreamSongView(APIView):
                 skipped=True
             ).count()
 
-            if skip_count >= 6:
+            if skip_count >= 5:
                 return Response({
                     'error': 'Skip limit reached',
-                    'message': 'Free users can only skip 6 times per hour.',
+                    'message': 'Free users can only skip 5 times per hour.',
                     'upgrade': True
                 }, status=status.HTTP_403_FORBIDDEN)
 
-            # Check if ad is needed (every 5 songs)
             recent_streams = PlayHistory.objects.filter(
                 user=user,
                 played_at__gte=one_hour_ago
             ).count()
 
             show_ad = recent_streams > 0 and recent_streams % 5 == 0
-
         else:
             show_ad = False
 
-        # --- Increase stream count ---
         song.stream_count += 1
         song.save(update_fields=['stream_count'])
 
-        # --- Store play history ---
         skipped = request.data.get('skipped', False)
-        PlayHistory.objects.create(
-            user=user,
-            song=song,
-            skipped=skipped
-        )
+        PlayHistory.objects.create(user=user, song=song, skipped=skipped)
 
         return Response({
-            'message': 'Stream recorded',
-            'song': SongSerializer(song, context={'request': request}).data,
-            'show_ad': show_ad,
-            'is_premium': is_premium,
-            'stream_count': song.stream_count
+            'song_id':      song.id,
+            'title':        song.title,
+            'artist':       song.artist.name,
+            'audio_url':    song.audio_file_url,
+            'stream_count': song.stream_count,
+            'is_premium':   is_premium,
+            'ad_required':  show_ad,
+            'skip_allowed': is_premium,
         }, status=status.HTTP_200_OK)
-        
-        
 
+
+class StreamHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        history = PlayHistory.objects.filter(
+            user=request.user
+        ).select_related('song__artist', 'song__album').order_by('-played_at')[:50]
+
+        return Response({
+            'history': PlayHistorySerializer(history, many=True).data
+        }, status=status.HTTP_200_OK)
 
 
 class SearchView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        query = request.query_params.get('q', '')
+        q = request.query_params.get('q', '').strip()
 
-        if not query:
-            return Response({'error': 'Query parameter q is required'}, status=400)
+        if not q:
+            return Response({
+                'query':   '',
+                'songs':   [],
+                'albums':  [],
+                'artists': [],
+            })
+
+        cache_key = f'search_{q.lower()}'
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         songs = Song.objects.filter(
-            Q(title__icontains=query) |
-            Q(artist__name__icontains=query)
-        )[:10]
+            Q(title__icontains=q) |
+            Q(artist__name__icontains=q)
+        ).select_related('artist', 'album', 'genre')[:10]
 
         albums = Album.objects.filter(
-            Q(title__icontains=query) |
-            Q(artist__name__icontains=query)
+            Q(title__icontains=q) |
+            Q(artist__name__icontains=q)
         )[:10]
 
-        artists = Artist.objects.filter(
-            name__icontains=query
-        )[:10]
+        artists = Artist.objects.filter(name__icontains=q)[:10]
 
-        return Response({
-            'songs': SongSerializer(songs, many=True, context={'request': request}).data,
-            'albums': AlbumSerializer(albums, many=True, context={'request': request}).data,
+        data = {
+            'query':   q,
+            'songs':   SongSerializer(songs, many=True, context={'request': request}).data,
+            'albums':  AlbumSerializer(albums, many=True, context={'request': request}).data,
             'artists': ArtistSerializer(artists, many=True, context={'request': request}).data,
-        })
-        
-        
-        
-      
-  
+        }
+        cache.set(cache_key, data, timeout=60 * 5)  # cache for 5 minutes
+        return Response(data)
 
 
 class TrendingView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # most streamed songs in last 7 days
-        seven_days_ago = timezone.now() - timedelta(days=7)
-        trending_songs = Song.objects.filter(
-            play_histories__played_at__gte=seven_days_ago
-        ).annotate(
-            recent_streams=Count('play_histories')
-        ).order_by('-recent_streams')[:20]
+        cache_key = 'trending_songs'
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
-        return Response({
-            'trending': SongSerializer(trending_songs, many=True, context={'request': request}).data
-        })
+        since = timezone.now() - timedelta(days=7)
+        songs = Song.objects.filter(
+            play_histories__played_at__gte=since
+        ).annotate(
+            recent_plays=Count('play_histories')
+        ).order_by('-recent_plays').select_related('artist', 'album', 'genre')[:10]
+
+        if songs.count() < 5:
+            songs = Song.objects.select_related(
+                'artist', 'album', 'genre'
+            ).order_by('-stream_count')[:10]
+
+        data = {
+            'period': 'last_7_days',
+            'songs':  SongSerializer(songs, many=True, context={'request': request}).data,
+        }
+        cache.set(cache_key, data, timeout=60 * 15)  # cache for 15 minutes
+        return Response(data)
 
 
 class TopArtistsView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # artists with most streams
         top_artists = Artist.objects.annotate(
-            total_streams=Count('songs__play_histories')
+            total_streams=Count('songs__play_histories', distinct=True)
         ).order_by('-total_streams')[:10]
 
         return Response({
@@ -162,10 +174,9 @@ class TopArtistsView(APIView):
 
 
 class NewReleasesView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # songs and albums released in last 30 days
         thirty_days_ago = timezone.now() - timedelta(days=30)
 
         new_songs = Song.objects.filter(
@@ -177,54 +188,49 @@ class NewReleasesView(APIView):
         ).order_by('-created_at')[:10]
 
         return Response({
-            'new_songs': SongSerializer(new_songs, many=True, context={'request': request}).data,
+            'new_songs':  SongSerializer(new_songs, many=True, context={'request': request}).data,
             'new_albums': AlbumSerializer(new_albums, many=True, context={'request': request}).data,
         })
-        
-        
+
+
 class RecommendationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
 
-        # --- genres user listens to most ---
         top_genres = PlayHistory.objects.filter(
             user=user
-        ).values(
-            'song__genres__id'
-        ).annotate(
-            count=Count('song__genres__id')
+        ).values('song__genre__id').annotate(
+            count=Count('song__genre__id')
         ).order_by('-count')[:5]
 
-        genre_ids = [g['song__genres__id'] for g in top_genres if g['song__genres__id']]
+        genre_ids = [g['song__genre__id'] for g in top_genres if g['song__genre__id']]
 
-        # --- artists user follows ---
         followed_artist_ids = Follow.objects.filter(
             user=user
         ).values_list('artist_id', flat=True)
 
-        # --- songs already played ---
         played_song_ids = PlayHistory.objects.filter(
             user=user
         ).values_list('song_id', flat=True)
 
-        # --- recommend songs based on genres and followed artists ---
         recommended = Song.objects.filter(
-            Q(genres__id__in=genre_ids) |
+            Q(genre__id__in=genre_ids) |
             Q(artist_id__in=followed_artist_ids)
         ).exclude(
-            id__in=played_song_ids  # exclude already played songs
+            id__in=played_song_ids
         ).annotate(
             stream_popularity=Count('play_histories')
         ).order_by('-stream_popularity').distinct()[:20]
 
         return Response({
-            'recommended': SongSerializer(recommended, many=True, context={'request': request}).data
+            'based_on': 'listening history',
+            'reason':   'Based on your top genres and followed artists',
+            'songs':    SongSerializer(recommended, many=True, context={'request': request}).data
         })
-        
-        
-        
+
+
 class FollowArtistView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -1,15 +1,4 @@
 
-
-# # Create your views here.
-# from rest_framework.viewsets import ModelViewSet
-# from .models import SubscriptionPlan
-# from .serializers import SubscriptionPlanSerializer
-
-
-# class SubscriptionPlanViewSet(ModelViewSet):
-#     queryset = SubscriptionPlan.objects.all()
-#     serializer_class = SubscriptionPlanSerializer
-    
     
 from rest_framework.views import APIView
 from rest_framework.response import Response

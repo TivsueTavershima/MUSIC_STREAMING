@@ -2,15 +2,23 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-
 from .models import Playlist, PlaylistItem, LikedSongs
 from .serializers import (
     PlaylistSerializer,
     PlaylistCreateSerializer,
     AddSongSerializer,
-    LikedSongsSerializer,
+    # LikedSongsSerializer,
 )
+from music.models import Song      
+from rest_framework import generics, permissions, status
+from django.db.models import F
+from .serializers import PlayHistorySerializer
 from music.models import Song
+
+
+
+
+
 
 
 class PlaylistCreateView(generics.CreateAPIView):
@@ -71,14 +79,10 @@ class PlaylistAddSongView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
-
 class MyPlaylistsView(generics.ListAPIView):
     """
     GET /playlists/my/
     Return all playlists that belong to the authenticated user.
-    
-    Returns the authenticated user's last 50 played songs,
-    most recent first.
     """
     serializer_class = PlaylistSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -87,69 +91,12 @@ class MyPlaylistsView(generics.ListAPIView):
         return (
             Playlist.objects
             .filter(user=self.request.user)
-            .prefetch_related("items__song__artist")
-            .select_related("song", "song__artist", "song__album")
+            .select_related("user")
+            .prefetch_related("songs")
             [:50]
         )
 
-
-class LikedSongsView(generics.ListAPIView):
-    """
-    GET /users/liked-songs/
-    Return all songs the authenticated user has liked.
-    """
-    serializer_class = LikedSongsSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return (
-            LikedSongs.objects
-            .filter(user=self.request.user)
-            .select_related("song__artist", "song__album")
-        )
-
-
-class LikeSongView(APIView):
-    """
-    POST /music/like/<song_id>/
-    Toggle like on a song.
-    - First call  → likes the song   (201)
-    - Second call → unlikes the song (200)
-    """
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, song_id):
-        song = get_object_or_404(Song, pk=song_id)
-
-        liked, created = LikedSongs.objects.get_or_create(
-            user=request.user,
-            song=song,
-        )
-
-        if not created:
-            liked.delete()
-            return Response(
-                {"detail": "Song unliked.", "liked": False, "song_id": song.id},
-                status=status.HTTP_200_OK,
-            )
-
-        return Response(
-            {"detail": "Song liked.", "liked": True, "song_id": song.id},
-            status=status.HTTP_201_CREATED,
-        )
         
-        
-        
-        
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
-from django.db.models import F
-
-from .models import Playlist
-from .serializers import PlayHistorySerializer
-from music.models import Song
 
 # ── Streaming restriction constants ───────────────────────────────────────────
 FREE_AD_EVERY_N_SONGS  = 5   # free users see an ad every 5 streams

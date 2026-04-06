@@ -3,8 +3,7 @@ from .views import (
     PlaylistCreateView,
     PlaylistAddSongView,
     MyPlaylistsView,
-    LikedSongsView,
-    LikeSongView,
+    # LikedSongsView,
     StreamSongView
 )
 
@@ -18,9 +17,7 @@ urlpatterns = [
     # GET  /playlists/my/
     path("my/",               MyPlaylistsView.as_view(),      name="my-playlists"),
     
-    path("liked-songs/", LikedSongsView.as_view(), name="liked-songs"),
-    
-    path("liked-songs/<int:song_id>/", LikeSongView.as_view(), name="like-song"),
+    # path("liked-songs/<int:song_id>/", LikeSongView.as_view(), name="like-song"),
     
      # POST /stream/<song_id>/
     path("<int:song_id>/", StreamSongView.as_view(),  name="stream-song"),

@@ -1,6 +1,4 @@
 
-
-
 from django.urls import path
 from .views import (
     GenreListCreateView,
@@ -12,7 +10,11 @@ from .views import (
     SongListView,
     SongDetailView,
     SongUploadView,
+    # LikeSongView,
+    # LikedSongsView
+
 )
+from music.search import SearchView, TrendingView, RecommendationsView, NewReleasesView, TopArtistsView
 
 urlpatterns = [
     # Genres
@@ -33,4 +35,10 @@ urlpatterns = [
 
     # Upload — Admin only
     path("upload/",                      SongUploadView.as_view(),       name="song-upload"),
+
+        # Search and discovery
+    path('search/',                  SearchView.as_view(),          name='search'),
+    path('discover/trending/',       TrendingView.as_view(),        name='music-trending'),
+    path('discover/new-releases/',   NewReleasesView.as_view(),     name='music-new-releases'),
+    path('discover/recommendations/', RecommendationsView.as_view(), name='music-recommendations'),  # ← fixed 
 ]

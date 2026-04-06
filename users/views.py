@@ -1,85 +1,17 @@
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework.permissions import IsAuthenticated
-# from django.utils import timezone
-# from datetime import timedelta
-# from rest_framework import status
-# from .serializers import RegisterSerializer
-
-       
-# class RegisterView(APIView):
-
-#     def post(self, request):
-#         serializer = RegisterSerializer(data=request.data)
-
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(
-#                 {"message": "User registered successfully"},
-#                 status=status.HTTP_201_CREATED
-#             )
-
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# class UpgradeSubscriptionView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         user = request.user
-
-#         # If already premium and not expired
-#         if user.is_premium and user.subscription_expiry:
-#             if user.subscription_expiry > timezone.now():
-#                 return Response(
-#                     {
-#                         "message": "User already has active premium subscription",
-#                         "expiry": user.subscription_expiry
-#                     },
-#                     status=status.HTTP_400_BAD_REQUEST
-#                 )
-
-#         # Upgrade / Renew
-#         user.is_premium = True
-#         user.subscription_expiry = timezone.now() + timedelta(days=30)
-#         user.save()
-
-#         return Response(
-#             {
-#                 "message": "Upgraded to Premium successfully",
-#                 "is_premium": user.is_premium,
-#                 "subscription_expiry": user.subscription_expiry
-#             },
-#             status=status.HTTP_200_OK
-#         )
-
-
-# class SubscriptionStatusView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-#         user = request.user
-
-#         return Response({
-#             "is_premium": user.has_active_subscription(),
-#             "expiry_date": user.subscription_expiry
-#         })
-        
-        
-        
-        
+   
 from django.contrib.auth import get_user_model
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-
 from .serializers import RegisterSerializer, UserProfileSerializer, ChangePasswordSerializer
 from billing.models import SubscriptionPlan, UserSubscription
 from billing.serializers import UserSubscriptionSerializer, UpgradeSerializer
 
 User = get_user_model()
+
+
 
 
 class RegisterView(generics.CreateAPIView):
@@ -144,7 +76,7 @@ class UpgradeView(APIView):
         # Get or create the requested plan
         defaults = {
             "free": {"name": "Free", "price": 0, "duration_days": 0},
-            "premium": {"name": "Premium", "price": 9.99, "duration_days": 30},
+            "premium": {"name": "Premium", "price": 1600.0, "duration_days": 30},
         }
         plan, _ = SubscriptionPlan.objects.get_or_create(
             plan_type=plan_type,
