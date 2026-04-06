@@ -2,8 +2,9 @@
 from rest_framework import generics, permissions, filters, status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-
+from rest_framework.views import APIView
 from music.permission import IsAdminOrReadOnly
+from django.shortcuts import get_object_or_404
 
 from .models import Genre, Artist, Album, Song
 from .serializers import (
@@ -14,7 +15,13 @@ from .serializers import (
     SongUploadSerializer,
 )
 
-
+from playlists.models import Playlist, PlaylistItem, LikedSongs
+from playlists.serializers import (
+    PlaylistSerializer,
+    PlaylistCreateSerializer,
+    AddSongSerializer,
+    LikedSongsSerializer,
+)
 
 # ── Genre ─────────────────────────────────────────────────────────────────────
 
@@ -107,3 +114,49 @@ class SongUploadView(generics.CreateAPIView):
 
 
 
+
+class LikedSongsView(generics.ListAPIView):
+    """
+    GET /users/liked-songs/
+    Return all songs the authenticated user has liked.
+    """
+    serializer_class = LikedSongsSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            LikedSongs.objects
+            .filter(user=self.request.user)
+            .select_related("song__artist", "song__album")
+        )
+
+
+class LikeSongView(APIView):
+    """
+    POST /music/like/<song_id>/
+    Toggle like on a song.
+    - First call  → likes the song   (201)
+    - Second call → unlikes the song (200)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, song_id):
+        song = get_object_or_404(Song, pk=song_id)
+
+        liked, created = LikedSongs.objects.get_or_create(
+            user=request.user,
+            song=song,
+        )
+
+        if not created:
+            liked.delete()
+            return Response(
+                {"detail": "Song unliked.", "liked": False, "song_id": song.id},
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {"detail": "Song liked.", "liked": True, "song_id": song.id},
+            status=status.HTTP_201_CREATED,
+        )
+        

@@ -3,6 +3,8 @@ from django.conf import settings
 from music.models import Song
 
 
+
+
 class Playlist(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -11,6 +13,7 @@ class Playlist(models.Model):
     )
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    songs = models.ManyToManyField('music.Song', blank=True, related_name='playlists')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
