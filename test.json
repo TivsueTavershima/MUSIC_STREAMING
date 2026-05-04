@@ -727,7 +727,7 @@
         },
 
         {
-          "name": "Like a Song",
+          "name": "Unlike the Same Song (toggle)",
           "event": [{
             "listen": "test",
             "script": {
@@ -745,7 +745,7 @@
         },
 
         {
-          "name": "Unlike the Same Song (toggle)",
+          "name": "like & Unlike the Same Song (toggle)",
           "event": [{
             "listen": "test",
             "script": {

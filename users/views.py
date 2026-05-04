@@ -41,7 +41,6 @@ class LoginView(TokenObtainPairView):
     """POST /auth/login/ — returns access + refresh JWT tokens"""
     permission_classes = [permissions.AllowAny]
 
-
 class LogoutView(APIView):
     """POST /auth/logout/ — blacklist the refresh token"""
     permission_classes = [permissions.IsAuthenticated]

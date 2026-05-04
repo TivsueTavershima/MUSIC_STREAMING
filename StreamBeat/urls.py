@@ -62,42 +62,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenObtainPairView
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from streaming.views import SearchView
-from music.search import SearchView, TrendingView, RecommendationsView, NewReleasesView, TopArtistsView
-
-# urlpatterns = [
-#     path('admin/',           admin.site.urls),
-#     path('admin/analytics/', include('analytics.urls')),
-#     path('auth/',            include('users.urls')),
-#     path('auth/login/',      TokenObtainPairView.as_view()),
-#     path('billing/',         include('billing.urls')),
-#     path('music/',           include('music.urls')),
-#     path('playlists/',       include('playlists.urls')),
-#     path('users/',           include('users.urls')),
-#     path('stream/',          include('streaming.urls')),
-#     # path('', include('music.discovery_urls')), # search/discover routes at root
-#     # path('search/',          SearchView.as_view(),        name='search'),
-#     path('',        include('music.urls')),
-#     # path('api/schema/',      SpectacularAPIView.as_view(),                       name='schema'),
-#     # path('api/docs/',        SpectacularSwaggerView.as_view(url_name='schema'),  name='swagger-ui'),
-# ]
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+# from rest_framework_simplejwt.views import TokenObtainPairView
+# from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+# from streaming.views import SearchView
+# from music.search import SearchView, TrendingView, RecommendationsView, NewReleasesView, TopArtistsView
 
 
 
-# urlpatterns = [
-#     path('admin/',           admin.site.urls),
-#     path('admin/analytics/', include('analytics.urls')),
-#     path('auth/',            include('users.urls')),
-#     path('billing/',         include('billing.urls')),
-#     path('music/',           include('music.urls')),
-#     path('playlists/',       include('playlists.urls')),
-#     path('users/',           include('users.urls')),  # ← only liked-songs here
-#     path('stream/',          include('streaming.urls')),
-#     path('',                 include('music.urls')),
-    
-# ]
 
 
 
@@ -107,9 +79,12 @@ urlpatterns = [
     path('admin/analytics/', include('analytics.urls')),
     path('auth/',            include('users.urls')),
     path('billing/',         include('billing.urls')),
-    path('music/',           include('music.urls')),      # ← keep only this
+    path('music/',           include('music.urls')),     
     path('playlists/',       include('playlists.urls')),
     path('users/',           include('users.urls')),
     path('stream/',          include('streaming.urls')),
-    path('',                 include('music.urls')),  # ← only search/discover
+    path('',                 include('music.urls')),
+    path('schema/',            SpectacularAPIView.as_view(), name='schema'),
+    path('swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('schema/redoc/',      SpectacularRedocView.as_view(url_name='schema'),   name='redoc'),
 ]
