@@ -7,13 +7,16 @@ from .serializers import (
     PlaylistSerializer,
     PlaylistCreateSerializer,
     AddSongSerializer,
-    # LikedSongsSerializer,
+    LikedSongsSerializer,
 )
 from music.models import Song      
 from rest_framework import generics, permissions, status
 from django.db.models import F
 from .serializers import PlayHistorySerializer
 from music.models import Song
+from django.utils import timezone
+from django.http import JsonResponse
+from .models import LikedSongs
 
 
 
@@ -96,67 +99,67 @@ class MyPlaylistsView(generics.ListAPIView):
             [:50]
         )
 
-        
+            
 
-# ── Streaming restriction constants ───────────────────────────────────────────
-FREE_AD_EVERY_N_SONGS  = 5   # free users see an ad every 5 streams
-FREE_SKIP_LIMIT        = 6   # free users can only skip 6 times per session (last 60 min)
-
-
-def _get_free_user_session_count(user):
-    """
-    Count how many songs the user has streamed in the current session window.
-    We use all-time count for ad frequency (every 5th stream gets an ad),
-    and the last 60 minutes for skip limit tracking.
-    """
-    from django.utils import timezone
-    from datetime import timedelta
-    since = timezone.now() - timedelta(hours=1)
-    return Playlist.objects.filter(user=user, played_at__gte=since).count()
+    # ── Streaming restriction constants ───────────────────────────────────────────
+    FREE_AD_EVERY_N_SONGS  = 5   # free users see an ad every 5 streams
+    FREE_SKIP_LIMIT        = 6   # free users can only skip 6 times per session (last 60 min)
 
 
-def _check_subscription(user):
-    """
-    Returns a dict describing what the user is allowed to do.
+    def _get_free_user_session_count(user):
+        """
+        Count how many songs the user has streamed in the current session window.
+        We use all-time count for ad frequency (every 5th stream gets an ad),
+        and the last 60 minutes for skip limit tracking.
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        since = timezone.now() - timedelta(hours=1)
+        return Playlist.objects.filter(user=user, played_at__gte=since).count()
 
-    Free users:
-      - ad_required = True every 5 streams (based on total stream count mod 5)
-      - skip_allowed = False once they've hit FREE_SKIP_LIMIT in the last hour
 
-    Premium users:
-      - ad_required  = False  (never)
-      - skip_allowed = True   (always)
-    """
-    is_premium = user.is_premium
+    def _check_subscription(user):
+        """
+        Returns a dict describing what the user is allowed to do.
 
-    if is_premium:
+        Free users:
+        - ad_required = True every 5 streams (based on total stream count mod 5)
+        - skip_allowed = False once they've hit FREE_SKIP_LIMIT in the last hour
+
+        Premium users:
+        - ad_required  = False  (never)
+        - skip_allowed = True   (always)
+        """
+        is_premium = user.is_premium
+
+        if is_premium:
+            return {
+                "is_premium":   True,
+                "ad_required":  False,
+                "skip_allowed": True,
+                "message":      "Premium — unlimited streaming, no ads.",
+            }
+
+        # Free user — count total historical plays to decide if ad is due
+        total_plays = Playlist.objects.filter(user=user).count()
+        ad_required = (total_plays > 0) and (total_plays % FREE_AD_EVERY_N_SONGS == 0)
+
+        # Skip limit: check streams in the last hour
+        session_count = _get_free_user_session_count(user)
+        skip_allowed  = session_count < FREE_SKIP_LIMIT
+
+        msg_parts = []
+        if ad_required:
+            msg_parts.append("Ad playing before this track.")
+        if not skip_allowed:
+            msg_parts.append(f"Skip limit of {FREE_SKIP_LIMIT} reached for this hour.")
+
         return {
-            "is_premium":   True,
-            "ad_required":  False,
-            "skip_allowed": True,
-            "message":      "Premium — unlimited streaming, no ads.",
+            "is_premium":   False,
+            "ad_required":  ad_required,
+            "skip_allowed": skip_allowed,
+            "message":      " ".join(msg_parts),
         }
-
-    # Free user — count total historical plays to decide if ad is due
-    total_plays = Playlist.objects.filter(user=user).count()
-    ad_required = (total_plays > 0) and (total_plays % FREE_AD_EVERY_N_SONGS == 0)
-
-    # Skip limit: check streams in the last hour
-    session_count = _get_free_user_session_count(user)
-    skip_allowed  = session_count < FREE_SKIP_LIMIT
-
-    msg_parts = []
-    if ad_required:
-        msg_parts.append("Ad playing before this track.")
-    if not skip_allowed:
-        msg_parts.append(f"Skip limit of {FREE_SKIP_LIMIT} reached for this hour.")
-
-    return {
-        "is_premium":   False,
-        "ad_required":  ad_required,
-        "skip_allowed": skip_allowed,
-        "message":      " ".join(msg_parts),
-    }
 
 
 # ── POST /stream/<song_id>/ ───────────────────────────────────────────────────
@@ -203,3 +206,33 @@ class StreamSongView(APIView):
             status=status.HTTP_200_OK,
         )
 
+
+class LikeSongView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, song_id):
+        try:
+            song = Song.objects.get(id=song_id)
+        except Song.DoesNotExist:
+            return Response(
+                {'error': 'Song not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        liked, created = LikedSongs.objects.get_or_create(
+            user=request.user,
+            song=song
+        )
+
+        if not created:
+            liked.delete()
+            return Response(
+                {'status': 'unliked', 'message': f'You unliked {song.title}'},
+                status=status.HTTP_200_OK
+            )
+
+        serializer = LikedSongsSerializer(liked)
+        return Response(
+            {'liked': True, 'data': serializer.data},
+            status=status.HTTP_201_CREATED
+)

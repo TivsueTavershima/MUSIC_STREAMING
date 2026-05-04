@@ -22,10 +22,6 @@ from analytics.charts import (
 
 
 
-
-
-
-
 class StreamStatsView(APIView):
     permission_classes = [IsAdminUserRole]
 
@@ -240,12 +236,12 @@ class TopArtistsView(APIView):
         })
 
 
-# TopArtistsView
-artists = Artist.objects.annotate(
-    total_streams=Count("songs__play_histories")
-).order_by("-total_streams")[:10]
+        # TopArtistsView
+        artists = Artist.objects.annotate(
+            total_streams=Count("songs__play_histories")
+        ).order_by("-total_streams")[:10]
 
-# MostPlayedGenresView
-genres = Genre.objects.annotate(
-    total_streams=Count("song__play_histories")
-).order_by("-total_streams")[:10]
+        # MostPlayedGenresView
+        genres = Genre.objects.annotate(
+            total_streams=Count("song__play_histories")
+        ).order_by("-total_streams")[:10]

@@ -67,9 +67,9 @@ class TrendingView(APIView):
         since = timezone.now() - timedelta(days=7)
 
         songs = Song.objects.filter(
-            play_histories__played_at__gte=since  # fixed
+            play_histories__played_at__gte=since
         ).annotate(
-            recent_plays=Count("play_histories")  # fixed
+            recent_plays=Count("play_histories")
         ).order_by("-recent_plays").select_related("artist", "album", "genre")[:10]
 
         if songs.count() < 5:
@@ -92,7 +92,7 @@ class TopArtistsView(APIView):
 
     def get(self, request):
         artists = Artist.objects.annotate(
-            total_streams=Count("songs__play_histories", distinct=True)  # fixed
+            total_streams=Count("songs__play_histories", distinct=True)
         ).order_by("-total_streams")[:10]
 
         data = ArtistSerializer(artists, many=True).data
